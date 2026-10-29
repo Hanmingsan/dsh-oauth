@@ -39,6 +39,8 @@ export interface GeminiServiceConfig {
   dshHome?: string
   clientId?: string
   clientSecret?: string
+  /** Optional Google Cloud project id (paid tiers); falls back to GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_PROJECT_ID. */
+  projectId?: string
   createClient?: (clientId: string, clientSecret: string) => OAuth2Client
   onAuthStateChange?: (authenticated: boolean) => void | Promise<void>
 }
@@ -231,8 +233,8 @@ function projectIdIsNumeric(projectId: string): boolean {
   return /^\d+$/.test(projectId)
 }
 
-function selectedProjectId(stored: GeminiCredential | undefined): string | undefined {
-  const value = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT_ID ?? stored?.projectId
+function selectedProjectId(stored: GeminiCredential | undefined, configured?: string): string | undefined {
+  const value = configured ?? process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT_ID ?? stored?.projectId
   if (value !== undefined && projectIdIsNumeric(value)) throw geminiError('A Google Cloud project number cannot be used as a project ID', 'GEMINI_INVALID_PROJECT_ID')
   return value
 }
@@ -589,7 +591,7 @@ export function createGeminiService(ctx: Context, config: GeminiServiceConfig = 
     const activeClient = oauthClient ?? await getClient()
     client ??= activeClient
     const stored = await loadGeminiCredential(config.dshHome)
-    const localProjectId = selectedProjectId(stored)
+    const localProjectId = selectedProjectId(stored, config.projectId)
     const request = {
       cloudaicompanionProject: localProjectId,
       metadata: { ideType: 'IDE_UNSPECIFIED', platform: 'PLATFORM_UNSPECIFIED', pluginType: 'GEMINI', ...(localProjectId === undefined ? {} : { duetProject: localProjectId }) },

@@ -13,6 +13,8 @@ export interface GeminiServiceConfig {
     dshHome?: string;
     clientId?: string;
     clientSecret?: string;
+    /** Optional Google Cloud project id (paid tiers); falls back to GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_PROJECT_ID. */
+    projectId?: string;
     createClient?: (clientId: string, clientSecret: string) => OAuth2Client;
     onAuthStateChange?: (authenticated: boolean) => void | Promise<void>;
 }

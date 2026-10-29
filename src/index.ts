@@ -9,6 +9,12 @@ export interface Config {
   dshHome?: string
   controlPort?: number
   codexRedirectPort?: number
+  /** Google installed-app OAuth client id; falls back to GEMINI_CLIENT_ID. */
+  clientId?: string
+  /** Google installed-app OAuth client secret; falls back to GEMINI_CLIENT_SECRET. */
+  clientSecret?: string
+  /** Google Cloud project id for paid tiers; falls back to GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_PROJECT_ID. */
+  projectId?: string
 }
 
 export const name = '@kelvinwww/dsh-oauth'
