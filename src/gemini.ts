@@ -602,15 +602,22 @@ export function createGeminiService(ctx: Context, config: GeminiServiceConfig = 
     const load = await requestJson<LoadCodeAssistResponse>({ url: getMethodUrl('loadCodeAssist'), method: 'POST', body: JSON.stringify(request), headers: attributionHeaders(), signal })
     let resolvedProject = load.cloudaicompanionProject ?? localProjectId
     if (!load.currentTier) {
-      const ineligibleCode = ineligibleTierErrorCode(load.ineligibleTiers)
-      if (ineligibleCode) {
-        const message = ineligibleCode === 'GEMINI_VALIDATION_REQUIRED'
-          ? 'Gemini Code Assist account validation is required'
-          : 'Gemini Code Assist account is not eligible'
-        throw geminiError(message, ineligibleCode)
+      // An ineligible tier entry only explains why a tier is NOT offered (for
+      // example the free individual tier refusing a migrated client); it does
+      // not make the account ineligible when an allowed tier is available.
+      // Select the default allowed tier first, and only consult
+      // ineligibleTiers for the diagnosis when nothing is allowed.
+      const tier = load.allowedTiers?.find(candidate => candidate.isDefault) ?? load.allowedTiers?.[0]
+      if (!tier?.id) {
+        const ineligibleCode = ineligibleTierErrorCode(load.ineligibleTiers)
+        if (ineligibleCode) {
+          const message = ineligibleCode === 'GEMINI_VALIDATION_REQUIRED'
+            ? 'Gemini Code Assist account validation is required'
+            : 'Gemini Code Assist account is not eligible'
+          throw geminiError(message, ineligibleCode)
+        }
+        throw geminiError('Gemini Code Assist returned no default tier', 'GEMINI_NO_ALLOWED_TIER')
       }
-      const tier = load.allowedTiers?.find(candidate => candidate.isDefault)
-      if (!tier?.id) throw geminiError('Gemini Code Assist returned no default tier', 'GEMINI_NO_ALLOWED_TIER')
       if (!isFreeTier(tier) && !localProjectId) throw geminiError('A Google Cloud project is required for the selected Gemini tier', 'GEMINI_PROJECT_REQUIRED')
       const onboardRequest = {
         tierId: tier.id,
