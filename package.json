@@ -58,7 +58,8 @@
     "test": "vitest run"
   },
   "engines": {
-    "node": "^22.19.0 || >=24.11.0"
+    "node": "^22.19.0 || >=24.11.0",
+    "dsh": ">=0.2.1-rc.3 <0.3.0"
   },
   "dependencies": {
     "@deepseek-ai/dsh-atomic-write": "0.2.1-rc.3",
