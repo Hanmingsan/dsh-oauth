@@ -125,13 +125,37 @@ const styles = {
 } satisfies Record<string, CSSProperties>
 
 /**
- * Create the browser-side client for the loopback OAuth control server.
+ * Create the browser-side client for the OAuth control API.
  *
- * @param baseUrl - loopback control server URL.
+ * Prefers the same-origin `/plugins/oauth-bridge` route registered on the
+ * harness `webServer` (the only path the desktop shell allows renderers to
+ * reach); falls back to the standalone loopback control server when the route
+ * is absent.
+ *
+ * @param routeUrl - same-origin control API prefix.
+ * @param fallbackUrl - standalone loopback control server URL.
  * @returns status, login, and logout operations.
  */
-export function createOAuthBridgeClient(baseUrl = 'http://127.0.0.1:1456'): OAuthBridgeClient {
+export function createOAuthBridgeClient(routeUrl = '/plugins/oauth-bridge', fallbackUrl = 'http://127.0.0.1:1456'): OAuthBridgeClient {
+  let baseUrl = routeUrl
+  let probed = false
+
+  /** Select the reachable control API once per client instance. */
+  async function probe(): Promise<void> {
+    if (probed) return
+    probed = true
+    try {
+      const response = await fetch(`${routeUrl}/status`, { method: 'GET' })
+      const body = await response.json() as Record<string, unknown>
+      if (response.ok && typeof body === 'object' && body !== null) return
+    } catch {
+      // network failure or non-JSON body: route unavailable, fall through
+    }
+    baseUrl = fallbackUrl
+  }
+
   async function call(path: string, method: 'GET' | 'POST'): Promise<Record<string, unknown>> {
+    await probe()
     const response = await fetch(`${baseUrl}${path}`, { method })
     const body = await response.json() as Record<string, unknown>
     if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : `OAuth control request failed (${response.status})`)

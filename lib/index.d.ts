@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
-import { type Server } from 'node:http';
+import { type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 export interface Config {
     dshHome?: string;
     controlPort?: number;
@@ -24,6 +24,14 @@ interface ControlDependencies {
     dshHome?: string;
     port: number;
 }
+/**
+ * Serve the loopback OAuth control API for one request.
+ *
+ * Also mounted on the harness `webServer` so browser clients can reach it
+ * same-origin (the desktop shell blocks cross-port renderer fetches). When
+ * mounted under a path prefix, that prefix is stripped before routing.
+ */
+export declare function handleControlRequest(dependencies: ControlDependencies, request: IncomingMessage, response: ServerResponse, pathPrefix?: string): Promise<void>;
 /**
  * Start the loopback control API used by the small OAuth status UI.
  *

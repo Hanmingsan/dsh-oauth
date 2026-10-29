@@ -25,12 +25,18 @@ export interface OAuthBridgeClient {
 }
 export declare const inject: readonly ["slots", "locale"];
 /**
- * Create the browser-side client for the loopback OAuth control server.
+ * Create the browser-side client for the OAuth control API.
  *
- * @param baseUrl - loopback control server URL.
+ * Prefers the same-origin `/plugins/oauth-bridge` route registered on the
+ * harness `webServer` (the only path the desktop shell allows renderers to
+ * reach); falls back to the standalone loopback control server when the route
+ * is absent.
+ *
+ * @param routeUrl - same-origin control API prefix.
+ * @param fallbackUrl - standalone loopback control server URL.
  * @returns status, login, and logout operations.
  */
-export declare function createOAuthBridgeClient(baseUrl?: string): OAuthBridgeClient;
+export declare function createOAuthBridgeClient(routeUrl?: string, fallbackUrl?: string): OAuthBridgeClient;
 /**
  * Register the OAuth panel in the DSH Web settings surface.
  *
