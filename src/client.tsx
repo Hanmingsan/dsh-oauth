@@ -10,8 +10,8 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 import type {
-  ClientContext,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  Context,
+} from '@deepseek-ai/cordis'
 
 import type {
   PropsLocale,
@@ -19,6 +19,7 @@ import type {
 
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 
 import {
   en,
@@ -332,7 +333,7 @@ function OAuthProviderPanel({ t }: OAuthProviderPanelProps) {
  *
  * @param ctx - DSH client context providing the settings and locale services.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(
     () => ctx.locale.register(NS, { zh, en }),
     'dsh-oauth: settings locale',

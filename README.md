@@ -25,6 +25,8 @@ DSH OAuth Bridge 是一个 [DeepSeek Harness](https://github.com/deepseek-ai/dee
 
 ## Install
 
+> **要求**：DeepSeek Harness **0.2.x**（已在 `0.2.1-rc.3` 上验证；不再兼容 0.1.x）。
+
 项目已发布到 npm：
 
 ```sh

@@ -2,11 +2,12 @@ import { OAuth2Client, type Credentials } from 'google-auth-library'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import {
   attributionHeaders,
-  CallId,
   LlmAdapter,
   LlmError,
+  ToolCallId,
   type GenerateOptions,
   type Message,
+  type RequestMessage,
   type StreamChunk,
   type ToolSchema,
 } from '@deepseek-ai/dsh-llm'
@@ -317,30 +318,42 @@ function contentParts(message: Message, toolNames: ReadonlyMap<string, string>):
       parts.push({ functionCall: { name: block.name, args } })
       continue
     }
-    if (block.type === 'tool-result') {
-      const response: Record<string, unknown> = {}
-      for (const result of block.content) {
-        if (result.type === 'text') response.output = `${response.output ?? ''}${result.text}`
-      }
-      if (block.isError) response.error = true
-      parts.push({ functionResponse: { name: toolNames.get(block.toolCallId) ?? block.toolCallId, response } })
-      continue
-    }
+    if (block.type === 'tool-addition' || block.type === 'tool-removal') continue
     throw geminiError(`Gemini does not support DSH content block ${block.type}`, 'GEMINI_STREAM_ERROR')
   }
   return parts
 }
 
-function convertContents(messages: Message[]): Record<string, unknown>[] {
+/**
+ * Convert dsh 0.2.x role-based messages into Gemini Code Assist contents.
+ * Tool results arrive as first-class `tool`-role messages; the mapping sends
+ * their `functionResponse` parts inside a `user`-role turn, which is the
+ * shape Gemini Code Assist expects. System-role messages are collected
+ * separately into the request-level system instruction.
+ */
+function convertContents(messages: RequestMessage[]): Record<string, unknown>[] {
   const toolNames = new Map<string, string>()
-  return messages.map(message => {
+  for (const message of messages) {
     for (const block of message.content) {
       if (block.type === 'tool-call') toolNames.set(block.id, block.name)
     }
-    return {
-      role: message.role === 'assistant' ? 'model' : 'user',
-      parts: contentParts(message, toolNames),
+  }
+  return messages.map(message => {
+    if (message.role === 'assistant') {
+      return { role: 'model', parts: contentParts(message, toolNames) }
     }
+    if (message.role === 'tool') {
+      const response: Record<string, unknown> = {}
+      for (const block of message.content) {
+        if (block.type === 'text') response.output = `${response.output ?? ''}${block.text}`
+      }
+      if (message.isError) response.error = true
+      return {
+        role: 'user',
+        parts: [{ functionResponse: { name: toolNames.get(message.toolCallId) ?? message.toolCallId, response } }],
+      }
+    }
+    return { role: 'user', parts: contentParts(message as Message, toolNames) }
   })
 }
 
@@ -355,13 +368,27 @@ function toGenerateRequest(options: GenerateOptions, project: string): Record<st
     ...(options.maxTokens === undefined ? {} : { maxOutputTokens: options.maxTokens }),
     ...(options.stop === undefined ? {} : { stopSequences: options.stop }),
   }
+  const systemTexts: string[] = []
+  const messages: RequestMessage[] = []
+  for (const message of options.messages) {
+    if (message.role === 'system') {
+      for (const block of message.content) {
+        if (block.type === 'text') systemTexts.push(block.text)
+      }
+      continue
+    }
+    messages.push(message)
+  }
+  const system = options.system === undefined
+    ? systemTexts.join('\n\n')
+    : [options.system, ...systemTexts].join('\n\n')
   return {
     model: options.model,
     project,
     ...(options.sessionId === undefined ? {} : { user_prompt_id: String(options.sessionId) }),
     request: {
-      contents: convertContents(options.messages),
-      ...(options.system === undefined ? {} : { systemInstruction: { parts: [{ text: options.system }] } }),
+      contents: convertContents(messages),
+      ...(system.length === 0 ? {} : { systemInstruction: { parts: [{ text: system }] } }),
       ...(convertTools(options.tools) === undefined ? {} : { tools: convertTools(options.tools) }),
       ...(Object.keys(generationConfig).length === 0 ? {} : { generationConfig }),
       ...(options.sessionId === undefined ? {} : { session_id: String(options.sessionId) }),
@@ -814,7 +841,7 @@ export async function* streamGemini(transport: GeminiTransport, options: Generat
         const call = functionCall as Record<string, unknown>
         const name = typeof call.name === 'string' ? call.name : 'unknown'
         const args = call.args ?? {}
-        const id = CallId(randomUUID())
+        const id = ToolCallId(randomUUID())
         const index = nextIndex++
         const argumentsJson = JSON.stringify(args)
         hasToolCall = true
