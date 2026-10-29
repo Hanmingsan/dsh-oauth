@@ -243,6 +243,7 @@ function errorCodeFromResponse(error: CodeAssistError | undefined, fallback: str
   const value = `${error?.status ?? ''} ${error?.message ?? ''}`.toUpperCase()
   if (value.includes('VALIDATION')) return 'GEMINI_VALIDATION_REQUIRED'
   if (value.includes('ELIGIBLE')) return 'GEMINI_ACCOUNT_NOT_ELIGIBLE'
+  if (value.includes('SERVICE_DISABLED') || value.includes('ACCESSNOTCONFIGURED') || value.includes('HAS NOT BEEN USED')) return 'GEMINI_SERVICE_DISABLED'
   return fallback
 }
 
@@ -552,8 +553,9 @@ export function createGeminiService(ctx: Context, config: GeminiServiceConfig = 
       }
       return response.data
     } catch (error) {
-      if ((error as { code?: string }).code?.startsWith('GEMINI_')) {
-        if ((error as { code?: string }).code === 'GEMINI_AUTH_REQUIRED') await revokeAuthentication()
+      const thrown = (error as { code?: unknown }).code
+      if (typeof thrown === 'string' && thrown.startsWith('GEMINI_')) {
+        if (thrown === 'GEMINI_AUTH_REQUIRED') await revokeAuthentication()
         throw error
       }
       const { status, data } = errorResponse(error)
@@ -574,8 +576,9 @@ export function createGeminiService(ctx: Context, config: GeminiServiceConfig = 
       }
       return response.data
     } catch (error) {
-      if ((error as { code?: string }).code?.startsWith('GEMINI_')) {
-        if ((error as { code?: string }).code === 'GEMINI_AUTH_REQUIRED') await revokeAuthentication()
+      const thrown = (error as { code?: unknown }).code
+      if (typeof thrown === 'string' && thrown.startsWith('GEMINI_')) {
+        if (thrown === 'GEMINI_AUTH_REQUIRED') await revokeAuthentication()
         throw error
       }
       const { status, data } = errorResponse(error)
