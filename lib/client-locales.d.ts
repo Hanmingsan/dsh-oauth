@@ -13,6 +13,8 @@ export declare const en: {
     readonly logout: "Log out";
     readonly working: "Working…";
     readonly unavailable: "OAuth control server is unavailable.";
+    readonly popupBlocked: "The authorization page did not open automatically.";
+    readonly openAuthUrl: "Open it manually";
     readonly operationFailed: "OAuth operation failed.";
 };
 export type OAuthLocaleKey = keyof typeof en;

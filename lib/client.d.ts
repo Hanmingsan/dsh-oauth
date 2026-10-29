@@ -13,9 +13,14 @@ export interface OAuthStatus {
         authenticated: boolean;
     };
 }
+export interface OAuthLoginResult {
+    authUrl: string;
+    /** Whether the authorization page opened in its own tab; false means the caller must offer a manual link. */
+    opened: boolean;
+}
 export interface OAuthBridgeClient {
     status(): Promise<OAuthStatus>;
-    login(provider: 'codex' | 'gemini'): Promise<void>;
+    login(provider: 'codex' | 'gemini'): Promise<OAuthLoginResult>;
     logout(provider: 'codex' | 'gemini'): Promise<void>;
 }
 export declare const inject: readonly ["slots", "locale"];

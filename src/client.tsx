@@ -40,9 +40,15 @@ export interface OAuthStatus {
   gemini: { authenticated: boolean }
 }
 
+export interface OAuthLoginResult {
+  authUrl: string
+  /** Whether the authorization page opened in its own tab; false means the caller must offer a manual link. */
+  opened: boolean
+}
+
 export interface OAuthBridgeClient {
   status(): Promise<OAuthStatus>
-  login(provider: 'codex' | 'gemini'): Promise<void>
+  login(provider: 'codex' | 'gemini'): Promise<OAuthLoginResult>
   logout(provider: 'codex' | 'gemini'): Promise<void>
 }
 
@@ -137,17 +143,16 @@ export function createOAuthBridgeClient(baseUrl = 'http://127.0.0.1:1456'): OAut
       return await call('/status', 'GET') as unknown as OAuthStatus
     },
     async login(provider) {
-      const popup = window.open('about:blank', '_blank')
-      if (!popup) throw new Error('OAuth popup was blocked')
-      try {
-        const result = await call(`/auth/${provider}/start`, 'POST')
-        const authUrl = result.authUrl
-        if (typeof authUrl !== 'string') throw new Error('OAuth control response did not include authUrl')
-        popup.location.href = authUrl
-      } catch (error) {
-        popup.close()
-        throw error
-      }
+      const result = await call(`/auth/${provider}/start`, 'POST')
+      const authUrl = result.authUrl
+      if (typeof authUrl !== 'string') throw new Error('OAuth control response did not include authUrl')
+      // Open the real https authorization URL directly. In the DSH desktop shell
+      // `window.open` is intercepted and http(s) targets open in the system
+      // browser while returning null; in ordinary browsers a popup blocker may
+      // also return null. Either way the caller shows the manual-link fallback.
+      const popup = window.open(authUrl, '_blank')
+      if (popup) popup.opener = null
+      return { authUrl, opened: popup !== null }
     },
     async logout(provider) {
       await call(`/auth/${provider}/logout`, 'POST')
@@ -232,6 +237,7 @@ function OAuthProviderPanel({ t }: OAuthProviderPanelProps) {
   const [status, setStatus] = useState<OAuthStatus | undefined>(undefined)
   const [busy, setBusy] = useState<'codex' | 'gemini' | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [pendingAuthUrl, setPendingAuthUrl] = useState<string | undefined>(undefined)
 
   const refresh = async (): Promise<void> => {
     try {
@@ -268,13 +274,15 @@ function OAuthProviderPanel({ t }: OAuthProviderPanelProps) {
     try {
       if (status?.[provider].authenticated) await client.logout(provider)
       else {
-        await client.login(provider)
+        const login = await client.login(provider)
+        setPendingAuthUrl(login.opened ? undefined : login.authUrl)
         await waitForAuthentication(provider, client)
       }
       await refresh()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('operationFailed'))
     } finally {
+      setPendingAuthUrl(undefined)
       setBusy(undefined)
     }
   }
@@ -316,6 +324,23 @@ function OAuthProviderPanel({ t }: OAuthProviderPanelProps) {
           onAction={() => void handleAction('gemini')}
         />
       </div>
+
+      {pendingAuthUrl !== undefined
+        ? (
+          <p style={styles.error}>
+            {t('popupBlocked')}
+            {' '}
+            <a
+              href={pendingAuthUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--dsw-alias-label-error)', textDecoration: 'underline' }}
+            >
+              {t('openAuthUrl')}
+            </a>
+          </p>
+        )
+        : null}
 
       {error !== undefined
         ? (
